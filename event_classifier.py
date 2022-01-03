@@ -2,86 +2,183 @@
 # Classifier finds the optimal minor and major parent for recombinant.
 
 import argparse
+import collections
 import os
-from pathlib import PurePath
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import math
+from collections import defaultdict
+import ast
 
 
-class classifier():
+class classifier:
 
-    folderToParse = ''
+    # Lists of paths for the three file types we're parsing
+    rec_events_path = Path()
+    seq_events_path_path = Path()
+    alignment_path = Path()
 
-    rec_events_files = []
-    seq_events_files = []
-    alignment_files = []
+    # Recombination events and sequence events files
+    alignment = pd.DataFrame
+    rec_events = pd.DataFrame
+    seq_events = pd.DataFrame
 
+    # The longest genome in the alignment files.
     maxGenomeLength = 0
+    numberOfAlignments = 0
 
-    def __init__(self, rootPath):
+    # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
+    generationMatrix = pd.DataFrame
 
-        # Get folder name to parse
-        self.folderToParse = rootPath
+    # Dictionaries
+    seqmap_dict = {}
+    events_dict = {}
+    events_map = {}
+    inv_seqmap_dict = defaultdict(set)
 
-        # Walk through the folder and find all files recombination event files, sequence event files and
-        # alignment files and store them in lists.
-        self.rec_events_files, self.seq_events_files, self.alignment_files = self.getFileNames()
+    def __init__(self, alig, rec, seq):
 
-        # Find the maximum genome length from the alignment files.
-        # self.maxGenomeLength = self.get_max_genome_length()
+        # Get relavent files that will be used in the parsing
+        self.alignment_path = Path(alig)
+        self.rec_events_path = Path(rec)
+        self.seq_events_path = Path(seq)
 
-    def getFileNames(self):
+        # Read in files function
+        self.readFiles()
+        # Find the maximum genome length from the alignment file.
+        self.get_max_genome_length()
+        # Create dictionaries used in generation matrix
+        self.create_dictionaries()
+        # Create generation count matrix
+        self.createGenerationMatrix()
 
-        # Folder to walk through and find the recom
-        targetFolder = PurePath(self.folderToParse)
+    def get_max_genome_length(self):
+        # Find the longest genome amongst the alignments
+        self.maxGenomeLength = max(self.alignment.iloc[:, 0].apply(len))
 
-        filesToParse = []
-        for paths in os.walk(targetFolder):
-            for files in paths[2]:
-                if files.endswith('.fa'):
-                    filesToParse.append(PurePath(
-                        r"C:\Users\joshc\OneDrive\University\Masters\RDP-ML", paths[0] + '/' + files)
-                    )
+        # Whilst I have the alignment file open find the number of alignments in it (between 100 and 200 I think)
+        # Divide by two because pandas interprets the .fa files weirdly
+        self.numberOfAlignments = math.ceil(len(self.alignment.index) / 2)
 
-    # def get_max_genome_length(self):
-    #     # Find the longest genome in the folder being parsed.
-    #     try:
-    #         alignment = open(self.alignment_fileName, "r")
-    #         alignment.seek(0)
-    #         _ = alignment.readline()
-    #         data = alignment.readline()
-    #     finally:
-    #         self.maximum_genome_length = len(data)
+    def readFiles(self):
+        # Load in the files as pandas dataframes
+        self.alignment = pd.read_csv(self.alignment_path)
+
+        # Read in Recombination events file
+        self.rec_events = pd.read_csv(
+            self.rec_events_path,
+            sep=r"*",
+            usecols=["EventNum", "Breakpoints", "Generation"],
+        )
+
+        # Remove the brackets surrounding breakpoints
+        self.rec_events.Breakpoints = self.rec_events.Breakpoints.str.strip("[]")
+        # Split breakpoints into start and end, drop breakpoints
+        self.rec_events[["Start", "End"]] = self.rec_events.Breakpoints.str.split(
+            ",",
+            expand=True,
+        )
+
+        # Read in sequence events map
+        self.seq_events = pd.read_csv(
+            self.seq_events_path, delimiter="*", index_col="Sequence"
+        )
+
+    def create_dictionaries(self):
+        # generating dictionaries from dataframes
+        self.seqmap_dict = {
+            i: ast.literal_eval(v)
+            for i, v in enumerate(self.seq_events["Events"].to_numpy(), 1)
+        }
+        self.events_dict = {
+            event: ast.literal_eval(bp)
+            for event, bp in zip(
+                self.rec_events["EventNum"], self.rec_events["Breakpoints"]
+            )
+        }
+        # Creating an inverted seqmap dictionary (event:sequences instead of sequence:events)
+        # with key,value pairs: event, [sequences containing event]
+        for key, value in self.seqmap_dict.items():
+            for eventnum in value:
+                self.inv_seqmap_dict[eventnum].add(key)
+
+    def createGenerationMatrix(self):
+        # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
+        self.generationMatrix = pd.DataFrame(
+            np.zeros(
+                shape=(self.numberOfAlignments, self.maxGenomeLength), dtype=np.int8
+            )
+        )
+
+        for event, seqs in self.inv_seqmap_dict.items():
+
+            start = int(self.rec_events.Start[self.rec_events.EventNum == int(event)])
+
+            end = int(self.rec_events.End[self.rec_events.EventNum == int(event)])
+
+            # Fixes indexing error involving maximum genome length
+            fix = 1
+            if end == self.maxGenomeLength:
+                fix = 0
+
+            box = []
+            for x in iter(seqs):
+                box.append(x - 1)
+
+            self.generationMatrix.iloc[box, start : (end + 1)] = np.full(
+                (len(seqs), end + 1 * fix - start), event, dtype=int
+            )
 
 
-def getPath():
+def getFilePaths():
     # This function is used to get the folder path from command line.
     # For future pipeline use.
 
     # Define command line argument parser
     parser = argparse.ArgumentParser(
-        description='Parse Recombination Information from SantaSim'
+        description="Parse Recombination Information from SantaSim"
     )
 
     # Add arguments for command line
-    parser.add_argument('-f', dest='folderToParse', type=str,
-                        help='The root folder to parse', required=True)
+    parser.add_argument(
+        "-a",
+        dest="alignment_path",
+        type=str,
+        help="recombination events file",
+        required=True,
+    )
+    parser.add_argument(
+        "-f",
+        dest="recombination_path",
+        type=str,
+        help="recombination events file",
+        required=True,
+    )
+    parser.add_argument(
+        "-f",
+        dest="sequence_path",
+        type=str,
+        help="sequence events map file",
+        required=True,
+    )
 
     # Parse Events
     args = parser.parse_args()
 
     # Returns the root folder to parse
-    return(args.folderToParse)
+    return (args.alignment_path, args.recombination_path, args.sequence_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # The line below will be used to get fileNames from pipeline later
-    # folderToParse = getPath()
+    # folderToParse = getFilePaths()
 
     # Currently used for testing purposes.
-    folderToParse = 'data/'
+    alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
+    recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
+    sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
 
     # Create classifier class by initialising file paths
-    parser = classifier(folderToParse)
-
-    # Gets maximum genome length.
-    parser.get_max_genome_length()
+    parser = classifier(alignment_path, recombination_path, sequence_path)
