@@ -130,6 +130,9 @@ class classifier:
                 (len(seqs), end + 1 * fix - start), event, dtype=int
             )
 
+        # Just for testing purposes.
+        print(self.generationMatrix)
+
 
 def getFilePaths():
     # This function is used to get the folder path from command line.
@@ -173,7 +176,7 @@ def getFilePaths():
 if __name__ == "__main__":
 
     # The line below will be used to get fileNames from pipeline later
-    # folderToParse = getFilePaths()
+    # alignment_path, recombination_path, sequence_path = getFilePaths()
 
     # Currently used for testing purposes.
     alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
