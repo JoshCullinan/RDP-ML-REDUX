@@ -215,10 +215,16 @@ class classifier:
                     total_nucleotides = 0
                     #need to calculate for all blocks, adding hamming distance
                     for r in ranges:
+                        #TODO: this is the place where we should check if event number is less before comparing
+                        #so the range r = r[0]:r[1] from which we extract the strings to be compared,
+                        #this range needs to be modified to only include the nucleotides where event number is less than the current event
+                        #this will be looked up in the generation matrix  
+
                         #retrieving current sequence string, restricting only to recombination event range:                        
                         seq1 = str(self.alignment[str(sequences+1)])[r[0]:r[1]]                        
                         #retrieving other sequence to compare to from set of sequences not in block, in same range:
-                        seq2 = str(self.alignment[str(seq_name+1)])[r[0]:r[1]]                                               
+                        seq2 = str(self.alignment[str(seq_name+1)])[r[0]:r[1]]
+
                         total_hamming_distance += distance.hamming(seq1, seq2)
                         total_nucleotides += (r[1]-r[0])
                         
