@@ -10,6 +10,8 @@ import numpy as np
 import math
 from collections import defaultdict
 import ast
+from Bio import SeqIO
+import distance
 
 
 class classifier:
@@ -26,7 +28,7 @@ class classifier:
 
     # The longest genome in the alignment files.
     maxGenomeLength = 0
-    numberOfAlignments = 0
+    numberOfSeqs = 0
 
     # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
     generationMatrix = pd.DataFrame
@@ -42,7 +44,8 @@ class classifier:
         # Get relavent files that will be used in the parsing
         self.alignment_path = Path(alig)
         self.rec_events_path = Path(rec)
-        self.seq_events_path = Path(seq)
+        self.seq_events_path = Path(seq)        
+        self.major_parents = {}
 
         # Read in files function
         self.readFiles()
@@ -55,15 +58,21 @@ class classifier:
 
     def get_max_genome_length(self):
         # Find the longest genome amongst the alignments
-        self.maxGenomeLength = max(self.alignment.iloc[:, 0].apply(len))
-
-        # Whilst I have the alignment file open find the number of alignments in it (between 100 and 200 I think)
-        # Divide by two because pandas interprets the .fa files weirdly
-        self.numberOfAlignments = math.ceil(len(self.alignment.index) / 2)
+        self.maxGenomeLength = max([len(y) for x,y in self.alignment.items()])      
+        # Amount of sequences in alignment
+        self.numberOfSeqs = len(self.alignment.items())
+        
 
     def readFiles(self):
         # Load in the files as pandas dataframes
-        self.alignment = pd.read_csv(self.alignment_path)
+        # Phillip: changed this to store alignmnet as a dictionary, since we will be using the sequences quite often later
+
+        #self.alignment = pd.read_csv(self.alignment_path)
+        self.alignment = SeqIO.to_dict(SeqIO.parse(self.alignment_path, "fasta"))
+
+        #changing to just store sequence, dont need other entries that biopython stores in dictionary        
+        for k, v in self.alignment.items():
+            self.alignment[k] = v.seq
 
         # Read in Recombination events file
         self.rec_events = pd.read_csv(
@@ -107,7 +116,7 @@ class classifier:
         # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
         self.generationMatrix = pd.DataFrame(
             np.zeros(
-                shape=(self.numberOfAlignments, self.maxGenomeLength), dtype=np.int8
+                shape=(self.numberOfSeqs, self.maxGenomeLength), dtype=np.int32
             )
         )
 
@@ -127,11 +136,121 @@ class classifier:
                 box.append(x - 1)
 
             self.generationMatrix.iloc[box, start : (end + 1)] = np.full(
-                (len(seqs), end + 1 * fix - start), event, dtype=int
+                (len(seqs), end + 1 * fix - start), int(event), dtype=np.int32
             )
 
         # Just for testing purposes.
         print(self.generationMatrix)
+
+    def calcHammingDistance(self, seq1, seq2):
+        #returns the hamming distance between two sequences
+        return distance.hamming(seq1, seq2)
+
+    def findEventPositions(self):
+        #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment we need to compare sequences within to find parents
+        #these sections are different for every event, and arent neccesarily continuous: these blocks can be overwritten by later events, creating fragmented blocks
+
+        #will make a dictionary to store this information
+        #format is as follows {key = event number, value = dictionary of sequences}
+        #where the dictionary of sequences stores the nucleotide positions for each sequence
+        #for example if positions 100-200 for sequence 5 and 10 are written as event 2543 in the generation matrix, the dictionary entry will be as follows:
+        #{2543: {5: [100, 200], 10: [100, 200]}}
+
+        #The point is to have a way to efficiently know where any given recombination block in the generation matrix is, 
+        #without having to search it for all entries of a given event number
+        block_dict = {x:{} for x in self.events_dict.keys()}       
+
+        #extracting raw array
+        gen_matrix = self.generationMatrix.to_numpy()
+
+        #iterate through generation matrix, where index = a tuple (sequence name, nucleotide position) 
+        for index, entry in np.ndenumerate(gen_matrix):
+            #entry of 0 means no recombination event touched this nucleotide, so we don't have to do anything
+            if not entry == 0:
+                seq = index[0]
+                nucleotide_pos = index[1]
+                
+                if seq in block_dict[entry]:
+                    #if entry exists, change as appropiate
+                    min_max = block_dict[entry][seq]
+                    max_pos = min_max[-1][-1]                    
+
+                    if nucleotide_pos == max_pos+1:
+                        #continuous, uninterrupted block of same event, thus just add +1 to maximum range
+                        min_max[-1][-1] += 1
+                        block_dict[entry][seq] = min_max
+                    else:
+                        #discontinuity, so need to make a new range of nucleotides
+                        min_max.append([nucleotide_pos, nucleotide_pos])
+                        block_dict[entry][seq] = min_max
+
+                else:   
+                    #if dictionary entry doesnt exist yet, create a new one          
+                    block_dict[entry][seq] = [[nucleotide_pos, nucleotide_pos]]
+
+        return block_dict
+
+    def calcMajorParents(self, block_dict):
+        #returns a dictionary with {key = event number, value = set(major parents)}
+        #TODO HERE: how to find best major parent out of multiple options?
+        #It is not guaranteed that all sequences will have the same best major parent
+        major_parents = {}
+
+        #iterate through events in block_dict, calculating major parent for each one
+        for events, sequence_range_dictionary in block_dict.items():   
+            #finding all sequences in block, so we know which sequences to search for major parent
+            sequences_in_block = set(sequence_range_dictionary.keys())
+            sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block
+
+            #now need to iterate through all sequences in the recombination block,
+            #calculating hamming distance of each sequence with all sequences not in the block, to find the closest one.
+            #this is the best major parent for that particular sequence
+            best_major_parents = []
+            for sequences, ranges in sequence_range_dictionary.items():
+                hamming_distances = {}
+
+                #need to calc hamming distance for all sequences not in block
+                for seq_name in sequences_not_in_block:
+                    total_hamming_distance = 0.0
+                    total_nucleotides = 0
+                    #need to calculate for all blocks, adding hamming distance
+                    for r in ranges:
+                        #retrieving current sequence string, restricting only to recombination event range:                        
+                        seq1 = str(self.alignment[str(sequences+1)])[r[0]:r[1]]                        
+                        #retrieving other sequence to compare to from set of sequences not in block, in same range:
+                        seq2 = str(self.alignment[str(seq_name+1)])[r[0]:r[1]]                                               
+                        total_hamming_distance += distance.hamming(seq1, seq2)
+                        total_nucleotides += (r[1]-r[0])
+                        
+                    #now add the sequence that has been compared to, together with normalised total hamming distance
+                    hamming_distances[seq_name] = total_hamming_distance/total_nucleotides
+
+                #now all the distances have been calculated for this particular sequence, need to find minimum
+                minimum_seq = min(hamming_distances, key=hamming_distances.get)
+                #add this minimum hamming distance sequence, together with its hamming distance to best major parents list
+                #this best major parents list stores best parents for all sequences in block, since these arent neccesarily the same
+                best_major_parents.append((minimum_seq, hamming_distances[minimum_seq]))
+
+            #now we have the best parents for all sequences in event
+            #which one to choose? not sure. For now just storing all of them
+            major_parents[events] = best_major_parents
+
+
+        return major_parents
+
+
+    def calcParents(self):
+        #This function uses the generation matrix to calculate the best minor and major parents for each recombination event
+
+        #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment to compare to find parents
+        #will make a dictionary to store this information, see function for more details on dictionary
+        block_dict = self.findEventPositions()
+
+        #now we can use this dictionary to find the major parents
+        self.major_parents = self.calcMajorParents(block_dict)
+
+
+        return
 
 
 def getFilePaths():
