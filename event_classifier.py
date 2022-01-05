@@ -12,6 +12,7 @@ from collections import defaultdict
 import ast
 from Bio import SeqIO
 import distance
+import time
 
 
 class classifier:
@@ -46,6 +47,7 @@ class classifier:
         self.rec_events_path = Path(rec)
         self.seq_events_path = Path(seq)        
         self.major_parents = {}
+        self.minor_parents = {}
 
         # Read in files function
         self.readFiles()
@@ -140,6 +142,7 @@ class classifier:
             )
 
         # Just for testing purposes.
+        self.generationMatrix = self.generationMatrix.to_numpy()
         print(self.generationMatrix)
 
     def calcHammingDistance(self, seq1, seq2):
@@ -161,7 +164,7 @@ class classifier:
         block_dict = {x:{} for x in self.events_dict.keys()}       
 
         #extracting raw array
-        gen_matrix = self.generationMatrix.to_numpy()
+        gen_matrix = self.generationMatrix
 
         #iterate through generation matrix, where index = a tuple (sequence name, nucleotide position) 
         for index, entry in np.ndenumerate(gen_matrix):
@@ -190,59 +193,86 @@ class classifier:
 
         return block_dict
 
-    def calcMajorParents(self, block_dict):
+    def calculateParents(self, block_dict, range_flipper):
+        #range_flipper = flips ranges, so True => major parents are calculated instead of minor
+
         #returns a dictionary with {key = event number, value = set(major parents)}
         #TODO HERE: how to find best major parent out of multiple options?
         #It is not guaranteed that all sequences will have the same best major parent
-        major_parents = {}
+        parents = {}
+        full_range = set(range(self.maxGenomeLength))
+
+        total_events = len(block_dict)
+        p = 0
 
         #iterate through events in block_dict, calculating major parent for each one
         for events, sequence_range_dictionary in block_dict.items():   
             #finding all sequences in block, so we know which sequences to search for major parent
             sequences_in_block = set(sequence_range_dictionary.keys())
-            sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block
+            sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block            
 
             #now need to iterate through all sequences in the recombination block,
             #calculating hamming distance of each sequence with all sequences not in the block, to find the closest one.
             #this is the best major parent for that particular sequence
-            best_major_parents = []
+            best_parents = []
             for sequences, ranges in sequence_range_dictionary.items():
                 hamming_distances = {}
+                recombinant_seq = str(self.alignment[str(sequences+1)])
+
+                final_ranges = set()
+
+                #if range flipper is true, need to change ranges to the complement set to calculate minor parents
+                if range_flipper:
+                    current_ranges = set()                        
+                    for r in ranges:
+                        current_ranges = current_ranges.union(set(range(r[0], r[1]+1)))
+                    final_ranges = full_range - current_ranges
+                #else can just take the sum of all ranges for major parent calculation
+                else:
+                    for r in ranges:
+                        final_ranges = final_ranges.union(set(range(r[0], r[1]+1)))
 
                 #need to calc hamming distance for all sequences not in block
                 for seq_name in sequences_not_in_block:
                     total_hamming_distance = 0.0
-                    total_nucleotides = 0
-                    #need to calculate for all blocks, adding hamming distance
-                    for r in ranges:
+                    total_nucleotides = 0                    
+                    
+                    parent_seq = str(self.alignment[str(seq_name+1)])
+                    seq1 = ''
+                    seq2 = ''
+                    #need to calculate for all blocks, adding hamming distancs
+                    for i in final_ranges:
                         #TODO: this is the place where we should check if event number is less before comparing
                         #so the range r = r[0]:r[1] from which we extract the strings to be compared,
                         #this range needs to be modified to only include the nucleotides where event number is less than the current event
-                        #this will be looked up in the generation matrix  
+                        #this will be looked up in the generation matrix 
+                        if self.generationMatrix[seq_name][i] < events:
+                            seq1 += recombinant_seq[i]
+                            seq2 += parent_seq[i]   
 
-                        #retrieving current sequence string, restricting only to recombination event range:                        
-                        seq1 = str(self.alignment[str(sequences+1)])[r[0]:r[1]]                        
-                        #retrieving other sequence to compare to from set of sequences not in block, in same range:
-                        seq2 = str(self.alignment[str(seq_name+1)])[r[0]:r[1]]
-
-                        total_hamming_distance += distance.hamming(seq1, seq2)
-                        total_nucleotides += (r[1]-r[0])
+                    total_hamming_distance = distance.hamming(seq1, seq2)
+                    total_nucleotides = (len(seq1))
                         
                     #now add the sequence that has been compared to, together with normalised total hamming distance
-                    hamming_distances[seq_name] = total_hamming_distance/total_nucleotides
+                    if total_nucleotides > 0:
+                        hamming_distances[seq_name] = total_hamming_distance/total_nucleotides
 
                 #now all the distances have been calculated for this particular sequence, need to find minimum
                 minimum_seq = min(hamming_distances, key=hamming_distances.get)
                 #add this minimum hamming distance sequence, together with its hamming distance to best major parents list
                 #this best major parents list stores best parents for all sequences in block, since these arent neccesarily the same
-                best_major_parents.append((minimum_seq, hamming_distances[minimum_seq]))
+                best_parents.append((minimum_seq, hamming_distances[minimum_seq]))
 
             #now we have the best parents for all sequences in event
             #which one to choose? not sure. For now just storing all of them
-            major_parents[events] = best_major_parents
+            parents[events] = best_parents
+            #updating progress
+            print("done with event " + str(p+1) + "/" + str(total_events))
+            p+=1
+            
 
 
-        return major_parents
+        return parents
 
 
     def calcParents(self):
@@ -250,11 +280,14 @@ class classifier:
 
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment to compare to find parents
         #will make a dictionary to store this information, see function for more details on dictionary
-        block_dict = self.findEventPositions()
-
+        block_dict = self.findEventPositions() 
+        
         #now we can use this dictionary to find the major parents
-        self.major_parents = self.calcMajorParents(block_dict)
-
+        print("Calculating major parents: ")
+        self.major_parents = self.calculateParents(block_dict, False)        
+        print("Calculating minor parents: ")
+        self.minor_parents = self.calculateParents(block_dict, True)
+        print("Done")
 
         return
 

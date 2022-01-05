@@ -1,10 +1,10 @@
 TODO:
 
 -------------------------------------------------------------------------------------------
-function calcMajorParents:
+function calcParents:
 
-only consider nucleotide for hamming distance when event number in compared sequence is lower than current event
+1.	How to find best major parent out of multiple options?
+	It is not guaranteed that all sequences will have the same best parents.
 
-How to find best major parent out of multiple options?
-It is not guaranteed that all sequences will have the same best major parents.
+2.	Make it faster, its kinda slow now
 -------------------------------------------------------------------------------------------
