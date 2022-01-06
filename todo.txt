@@ -1,10 +1,12 @@
 TODO:
 
+
 -------------------------------------------------------------------------------------------
 function calcParents:
 
 1.	How to find best major parent out of multiple options?
 	It is not guaranteed that all sequences will have the same best parents.
 
-2.	Make it faster, its kinda slow now
+2.	deal with gap characters
 -------------------------------------------------------------------------------------------
+

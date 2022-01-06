@@ -1,4 +1,4 @@
-# 03 Jan 22
+# 07 Jan 22
 # Classifier finds the optimal minor and major parent for recombinant.
 
 import argparse
@@ -12,8 +12,7 @@ from collections import defaultdict
 import ast
 from Bio import SeqIO
 import distance
-import time
-
+from intervaltree import Interval, IntervalTree
 
 class classifier:
 
@@ -178,118 +177,115 @@ class classifier:
                     min_max = block_dict[entry][seq]
                     max_pos = min_max[-1][-1]                    
 
-                    if nucleotide_pos == max_pos+1:
+                    if nucleotide_pos == max_pos:
                         #continuous, uninterrupted block of same event, thus just add +1 to maximum range
                         min_max[-1][-1] += 1
                         block_dict[entry][seq] = min_max
                     else:
                         #discontinuity, so need to make a new range of nucleotides
-                        min_max.append([nucleotide_pos, nucleotide_pos])
+                        min_max.append([nucleotide_pos, nucleotide_pos+1])
                         block_dict[entry][seq] = min_max
-
                 else:   
                     #if dictionary entry doesnt exist yet, create a new one          
-                    block_dict[entry][seq] = [[nucleotide_pos, nucleotide_pos]]
+                    block_dict[entry][seq] = [[nucleotide_pos, nucleotide_pos+1]]
 
         return block_dict
 
     def calculateParents(self, block_dict, range_flipper):
         #range_flipper = flips ranges, so True => major parents are calculated instead of minor
-
+               
         #returns a dictionary with {key = event number, value = set(major parents)}
         #TODO HERE: how to find best major parent out of multiple options?
         #It is not guaranteed that all sequences will have the same best major parent
-        parents = {}
-        full_range = set(range(self.maxGenomeLength))
 
-        total_events = len(block_dict)
-        p = 0
+        #this variable (deleted_nucleotides) will keep track of nucleotides with higher event numbers than all current events under consideration,
+        #thus if a nucleotide falls into this range, it shouldnt be considered for parent calculations
+        #Format is {sequence_name: interval_tree}
+        #interval tree holds all intervals of deleted nucleotides
+        deleted_nucleotides = {}             
+        parents = {} 
+        #we traverse block_dict in reverse order, calculating parents and then adding the ranges traversed to deleted nucleotides
+        #i.e. we start at the highest event number, calculate parents with the recombinant region,
+        #then that recombinant region is added to deleted nucleotides. Since all future events will have a smaller event number (earlier generation),
+        #these nucleotides shouldnt be considered for any parent calculations.
+        for event_number, sequence_ranges_dict in reversed(block_dict.items()):
 
-        #iterate through events in block_dict, calculating major parent for each one
-        for events, sequence_range_dictionary in block_dict.items():   
-            #finding all sequences in block, so we know which sequences to search for major parent
-            sequences_in_block = set(sequence_range_dictionary.keys())
-            sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block            
-
-            #now need to iterate through all sequences in the recombination block,
-            #calculating hamming distance of each sequence with all sequences not in the block, to find the closest one.
-            #this is the best major parent for that particular sequence
+            #divide sequences into recombinant and potential parents
+            sequences_in_block = set(sequence_ranges_dict.keys())
+            sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block      
             best_parents = []
-            for sequences, ranges in sequence_range_dictionary.items():
-                hamming_distances = {}
-                recombinant_seq = str(self.alignment[str(sequences+1)])
 
-                final_ranges = set()
+            #calculate best parents for all sequences of the current recombination event
+            for sequence, ranges in sequence_ranges_dict.items():  
+                recombinant_seq = str(self.alignment[str(sequence+1)])  
+                hamming_distances = {}               
 
-                #if range flipper is true, need to change ranges to the complement set to calculate minor parents
-                if range_flipper:
-                    current_ranges = set()                        
-                    for r in ranges:
-                        current_ranges = current_ranges.union(set(range(r[0], r[1]+1)))
-                    final_ranges = full_range - current_ranges
-                #else can just take the sum of all ranges for major parent calculation
-                else:
-                    for r in ranges:
-                        final_ranges = final_ranges.union(set(range(r[0], r[1]+1)))
-
-                #need to calc hamming distance for all sequences not in block
-                for seq_name in sequences_not_in_block:
-                    total_hamming_distance = 0.0
-                    total_nucleotides = 0                    
-                    
-                    parent_seq = str(self.alignment[str(seq_name+1)])
-                    seq1 = ''
+                #calculate hamming distances for all potential parents
+                for parent in sequences_not_in_block:
+                    parent_seq = str(self.alignment[str(parent+1)])
+                    seq1 = '' 
                     seq2 = ''
-                    #need to calculate for all blocks, adding hamming distancs
-                    for i in final_ranges:
-                        #TODO: this is the place where we should check if event number is less before comparing
-                        #so the range r = r[0]:r[1] from which we extract the strings to be compared,
-                        #this range needs to be modified to only include the nucleotides where event number is less than the current event
-                        #this will be looked up in the generation matrix 
-                        if self.generationMatrix[seq_name][i] < events:
-                            seq1 += recombinant_seq[i]
-                            seq2 += parent_seq[i]   
 
-                    total_hamming_distance = distance.hamming(seq1, seq2)
+                    #if we do minor parents, take recombinant region and then remove intervals that have been deleted
+                    if not range_flipper:
+                        ranges_tree = IntervalTree.from_tuples(ranges)
+                        if parent in deleted_nucleotides.keys():                                               
+                            for j in deleted_nucleotides[parent]:
+                                ranges_tree.chop(j.begin, j.end) 
+                    #for major parents, its the same except we take the complement of the recombinant region (all regions not in the recombinant region)
+                    else:
+                        recombinant_region = IntervalTree.from_tuples(ranges)
+                        ranges_tree = IntervalTree.from_tuples([[0, self.maxGenomeLength]])
+                        for r in recombinant_region:
+                            ranges_tree.chop(r.begin, r.end)
+                        if parent in deleted_nucleotides.keys():                                               
+                            for j in deleted_nucleotides[parent]:
+                                ranges_tree.chop(j.begin, j.end) 
+
+                    
+                    #can extract sequence now, since we have the final region:
+                    #recombinant region with all deleted nucleotides removed
+                    for k in ranges_tree:
+                        seq1 = seq1 + recombinant_seq[k.begin:k.end]
+                        seq2 = seq2 + parent_seq[k.begin:k.end]
+
+                    #calculating hamming distance
+                    #TODO: consider gap characters
+                    hamming_distance = distance.hamming(seq1, seq2)
                     total_nucleotides = (len(seq1))
                         
                     #now add the sequence that has been compared to, together with normalised total hamming distance
                     if total_nucleotides > 0:
-                        hamming_distances[seq_name] = total_hamming_distance/total_nucleotides
+                        hamming_distances[parent] = hamming_distance/total_nucleotides
 
                 #now all the distances have been calculated for this particular sequence, need to find minimum
                 minimum_seq = min(hamming_distances, key=hamming_distances.get)
-                #add this minimum hamming distance sequence, together with its hamming distance to best major parents list
-                #this best major parents list stores best parents for all sequences in block, since these arent neccesarily the same
+                #add this minimum hamming distance sequence, together with its hamming distance to best parents list                
                 best_parents.append((minimum_seq, hamming_distances[minimum_seq]))
 
-            #now we have the best parents for all sequences in event
-            #which one to choose? not sure. For now just storing all of them
-            parents[events] = best_parents
-            #updating progress
-            print("done with event " + str(p+1) + "/" + str(total_events))
-            p+=1
-            
+                #now add the nucleotides we have traversed to deleted nucleotides, these won't be considered in future events
+                if sequence in deleted_nucleotides.keys():                                                            
+                    deleted_nucleotides[sequence] = deleted_nucleotides[sequence].union(IntervalTree.from_tuples(ranges))                     
+                    deleted_nucleotides[sequence].merge_overlaps()
+                else:
+                    deleted_nucleotides[sequence] = IntervalTree.from_tuples(ranges)
 
+            parents[event_number] = best_parents  
 
         return parents
-
 
     def calcParents(self):
         #This function uses the generation matrix to calculate the best minor and major parents for each recombination event
 
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment to compare to find parents
         #will make a dictionary to store this information, see function for more details on dictionary
-        block_dict = self.findEventPositions() 
-        
+        block_dict = self.findEventPositions()         
         #now we can use this dictionary to find the major parents
-        print("Calculating major parents: ")
-        self.major_parents = self.calculateParents(block_dict, False)        
         print("Calculating minor parents: ")
-        self.minor_parents = self.calculateParents(block_dict, True)
-        print("Done")
-
-        return
+        self.minor_parents = self.calculateParents(block_dict, False)        
+        print("Calculating major parents: ")
+        self.major_parents = self.calculateParents(block_dict, True)
+        print("Done")       
 
 
 def getFilePaths():
