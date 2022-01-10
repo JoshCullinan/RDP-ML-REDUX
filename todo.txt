@@ -23,3 +23,10 @@ BUG No minimum sequence when using the XML5 example with Gap characters:
 	Returns error saying no minimum values, think it might be to do with deleted nucleotides?
 	Unsure.
 -------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------
+Create function Output:
+
+1.	Need to get output as Darren requested. 
+	StartBP, EndBP, Event?, Recom?, MinorParent?, MajorParent?
+-------------------------------------------------------------------------------------------

@@ -132,3 +132,5 @@ dmypy.json
 output_parser.py
 parsing_loop.py
 .vscode
+scratch.py
+tempfile
