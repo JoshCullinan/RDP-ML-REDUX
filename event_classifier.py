@@ -259,8 +259,9 @@ class classifier:
 
                 #now all the distances have been calculated for this particular sequence, need to find minimum
                 minimum_seq = min(hamming_distances, key=hamming_distances.get)
-                #add this minimum hamming distance sequence, together with its hamming distance to best parents list                
-                best_parents.append((minimum_seq, hamming_distances[minimum_seq]))
+                #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
+                #so this output is: recombinant sequence, best parent, hamming distance               
+                best_parents.append((sequence+1, minimum_seq+1, hamming_distances[minimum_seq]))
 
                 #now add the nucleotides we have traversed to deleted nucleotides, these won't be considered in future events
                 if sequence in deleted_nucleotides.keys():                                                            
@@ -280,9 +281,9 @@ class classifier:
         #will make a dictionary to store this information, see function for more details on dictionary
         block_dict = self.findEventPositions()         
         #now we can use this dictionary to find the major parents
-        print("Calculating minor parents: ")
+        print("Calculating minor parents...")
         self.minor_parents = self.calculateParents(block_dict, False)        
-        print("Calculating major parents: ")
+        print("Calculating major parents...")
         self.major_parents = self.calculateParents(block_dict, True)
         print("Done")       
 
