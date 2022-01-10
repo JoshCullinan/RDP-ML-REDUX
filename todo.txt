@@ -1,12 +1,25 @@
 TODO:
 
-
 -------------------------------------------------------------------------------------------
 function calcParents:
 
 1.	How to find best major parent out of multiple options?
 	It is not guaranteed that all sequences will have the same best parents.
 
-2.	deal with gap characters
+2.	deal with gap characters - Josh still TODO
 -------------------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------------------
+function calcHammingDistance:
+
+1.	Deal with Gap characters. Haven't found a library, need to implement how Darren wants
+	it done. Will likely be much slower in python than pure C.
+-------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------
+BUG No minimum sequence when using the XML5 example with Gap characters:
+
+1.	Unsure if Gap Characters are to blame or perhaps something else? 
+	Returns error saying no minimum values, think it might be to do with deleted nucleotides?
+	Unsure.
+-------------------------------------------------------------------------------------------

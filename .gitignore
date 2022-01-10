@@ -131,3 +131,4 @@ dmypy.json
 # Josh Edits
 output_parser.py
 parsing_loop.py
+.vscode

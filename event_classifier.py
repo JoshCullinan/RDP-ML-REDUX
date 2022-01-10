@@ -10,19 +10,20 @@ import numpy as np
 import math
 from collections import defaultdict
 import ast
-from Bio import SeqIO
+from Bio import SeqIO, AlignIO
 import distance
 from intervaltree import Interval, IntervalTree
+import re
 
 class classifier:
 
     # Lists of paths for the three file types we're parsing
-    rec_events_path = Path()
-    seq_events_path_path = Path()
-    alignment_path = Path()
+    rec_events_path = Path
+    seq_events_path_path = Path
+    alignment_path = Path
 
     # Recombination events and sequence events files
-    alignment = pd.DataFrame
+    alignment = dict
     rec_events = pd.DataFrame
     seq_events = pd.DataFrame
 
@@ -30,14 +31,17 @@ class classifier:
     maxGenomeLength = 0
     numberOfSeqs = 0
 
-    # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
-    generationMatrix = pd.DataFrame
+    # Generation matrix is a numpy array that is [number of alignments x max genome length] ([row x columns])
+    generationMatrix = np.array
 
     # Dictionaries
-    seqmap_dict = {}
-    events_dict = {}
-    events_map = {}
+    seqmap_dict = dict
+    events_dict = dict
+    events_map = dict
     inv_seqmap_dict = defaultdict(set)
+
+    # Gap dict
+    gaps = defaultdict(set)
 
     def __init__(self, alig, rec, seq):
 
@@ -50,26 +54,24 @@ class classifier:
 
         # Read in files function
         self.readFiles()
-        # Find the maximum genome length from the alignment file.
-        self.get_max_genome_length()
         # Create dictionaries used in generation matrix
         self.create_dictionaries()
+        # Find posistion of Gap characters in the sequences
+        self.getGaps()
         # Create generation count matrix
         self.createGenerationMatrix()
+        # Calc Parents
+        self.calcParents()
 
-    def get_max_genome_length(self):
-        # Find the longest genome amongst the alignments
-        self.maxGenomeLength = max([len(y) for x,y in self.alignment.items()])      
-        # Amount of sequences in alignment
-        self.numberOfSeqs = len(self.alignment.items())
-        
 
     def readFiles(self):
-        # Load in the files as pandas dataframes
-        # Phillip: changed this to store alignmnet as a dictionary, since we will be using the sequences quite often later
-
-        #self.alignment = pd.read_csv(self.alignment_path)
-        self.alignment = SeqIO.to_dict(SeqIO.parse(self.alignment_path, "fasta"))
+        # JOSH: Trying the AlignIO feature from BioPython as they have get max length and number of Seq Fnc.
+        # Useful if faster than my function for this.
+        self.alignment = AlignIO.read(self.alignment_path, 'fasta')
+        self.maxGenomeLength = self.alignment.get_alignment_length()
+        self.numberOfSeqs = self.alignment.__len__()
+        self.alignment = SeqIO.to_dict(self.alignment)
+        #self.alignment = SeqIO.to_dict(SeqIO.parse(self.alignment_path, 'fasta'))
 
         #changing to just store sequence, dont need other entries that biopython stores in dictionary        
         for k, v in self.alignment.items():
@@ -84,16 +86,12 @@ class classifier:
 
         # Remove the brackets surrounding breakpoints
         self.rec_events.Breakpoints = self.rec_events.Breakpoints.str.strip("[]")
+
         # Split breakpoints into start and end, drop breakpoints
-        self.rec_events[["Start", "End"]] = self.rec_events.Breakpoints.str.split(
-            ",",
-            expand=True,
-        )
+        self.rec_events[["Start", "End"]] = self.rec_events.Breakpoints.str.split(",", expand=True,)
 
         # Read in sequence events map
-        self.seq_events = pd.read_csv(
-            self.seq_events_path, delimiter="*", index_col="Sequence"
-        )
+        self.seq_events = pd.read_csv(self.seq_events_path, delimiter="*", index_col="Sequence")
 
     def create_dictionaries(self):
         # generating dictionaries from dataframes
@@ -113,13 +111,18 @@ class classifier:
             for eventnum in value:
                 self.inv_seqmap_dict[eventnum].add(key)
 
+    def getGaps(self):
+        for key, seq in self.alignment.items():
+            currentGaps = ([pos for pos, char in enumerate(str(seq)) if char == '-'])
+            self.gaps[int(key)] = currentGaps
+
     def createGenerationMatrix(self):
-        # Generation matrix is a pandas dataframe (for now) that is [number of alignments x max genome length] ([row x columns])
-        self.generationMatrix = pd.DataFrame(
-            np.zeros(
-                shape=(self.numberOfSeqs, self.maxGenomeLength), dtype=np.int32
-            )
-        )
+        # Generation matrix is a numpy array that is [number of alignments x max genome length] ([row x columns])
+
+        #self.generationMatrix = np.zeros(shape=(self.numberOfSeqs, self.maxGenomeLength))
+        self.generationMatrix = np.full(shape=(self.numberOfSeqs, self.maxGenomeLength), dtype='O', fill_value=0)
+        for key, gaps in self.gaps.items():
+            self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
 
         for event, seqs in self.inv_seqmap_dict.items():
 
@@ -136,13 +139,9 @@ class classifier:
             for x in iter(seqs):
                 box.append(x - 1)
 
-            self.generationMatrix.iloc[box, start : (end + 1)] = np.full(
+            self.generationMatrix[box, start : (end + 1)] = np.full(
                 (len(seqs), end + 1 * fix - start), int(event), dtype=np.int32
-            )
-
-        # Just for testing purposes.
-        self.generationMatrix = self.generationMatrix.to_numpy()
-        print(self.generationMatrix)
+                )
 
     def calcHammingDistance(self, seq1, seq2):
         #returns the hamming distance between two sequences
@@ -339,3 +338,6 @@ if __name__ == "__main__":
 
     # Create classifier class by initialising file paths
     parser = classifier(alignment_path, recombination_path, sequence_path)
+
+    # XML1-2500-0.01-12E-5-100-13
+    # XML5-4000-0.02-12E-5-50-4-3

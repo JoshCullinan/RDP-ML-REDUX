@@ -1,0 +1,22 @@
+CHANGE_LOG:
+
+-------------------------------------------------------------------------------------------
+Added function: getGaps
+
+1.  Finds the index of Gap characters in the sequences
+-------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------
+Edited function: createGenerationMatrix
+
+1.  Implemented gap characters '-' as an Object type. Previously the array was of type np.int32.
+    Appears to have not broken the code.
+-------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------
+Deleted function: getMaxGenomeLength
+
+1.  Imported the sequences using Biopython multiple sequence alignment feature. Allows for
+    genome length and seq number, slightly faster. Converted to dict in any case so no real
+    change.
+-------------------------------------------------------------------------------------------
