@@ -62,6 +62,8 @@ class classifier:
         self.createGenerationMatrix()
         # Calc Parents
         self.calcParents()
+        # Output to csv.
+        self.output()
 
 
     def readFiles(self):
@@ -144,8 +146,40 @@ class classifier:
                 )
 
     def calcHammingDistance(self, seq1, seq2):
+        
+        # Set for instances where seq1 and seq2 are 0 after dropping -
+        normalisedDistance = None
+
+        # Find the index of the gap characters in both sequences
+        seq1Gaps = ({pos for pos, char in enumerate(str(seq1)) if char == '-'})
+        seq2Gaps = ({pos for pos, char in enumerate(str(seq2)) if char == '-'})
+
+        # Find the union of these Gap characters
+        union = seq1Gaps | seq2Gaps
+
+        # Remove the characters at the indexes of the union. 
+        # 'A-TT-G' (Gaps at 1 and 4)
+        # 'GG-TAA' (Gap at 3)
+        # Union is {1,3,4}
+        # Output sequences will be 'ATG' and 'GTA'. Hamming distance will be 2. 
+        # Normalised over the total sites where neither sequence has a gap (3)
+        # 2/3 = 0.66
+
+        for count, indx in enumerate(union):
+            seq1 = seq1[:indx-count] + seq1[indx+1-count:]
+            seq2 = seq2[:indx-count] + seq2[indx+1-count:]
+        
         #returns the hamming distance between two sequences
-        return distance.hamming(seq1, seq2)
+        d = distance.hamming(seq1, seq2)
+
+        #Length of seqs
+        totalNucleotides = len(seq1)
+
+        if totalNucleotides > 0:
+            # Normalise over number of chars without gap characters
+            normalisedDistance = d/totalNucleotides
+
+        return normalisedDistance
 
     def findEventPositions(self):
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment we need to compare sequences within to find parents
@@ -249,13 +283,17 @@ class classifier:
                         seq2 = seq2 + parent_seq[k.begin:k.end]
 
                     #calculating hamming distance
-                    #TODO: consider gap characters
-                    hamming_distance = distance.hamming(seq1, seq2)
-                    total_nucleotides = (len(seq1))
+                    hamming_distance = self.calcHammingDistance(seq1, seq2)
+                    
+                    if hamming_distance != None:
+                        hamming_distances[parent] = hamming_distance
+
+                    #JOSH EDITED: Normalising in the function now due to dropping characters
+                    # total_nucleotides = (len(seq1))
                         
-                    #now add the sequence that has been compared to, together with normalised total hamming distance
-                    if total_nucleotides > 0:
-                        hamming_distances[parent] = hamming_distance/total_nucleotides
+                    # #now add the sequence that has been compared to, together with normalised total hamming distance
+                    # if total_nucleotides > 0:
+                    #     hamming_distances[parent] = hamming_distance/total_nucleotides
 
                 #now all the distances have been calculated for this particular sequence, need to find minimum
                 minimum_seq = min(hamming_distances, key=hamming_distances.get)
@@ -282,11 +320,39 @@ class classifier:
         block_dict = self.findEventPositions()         
         #now we can use this dictionary to find the major parents
         print("Calculating minor parents...")
-        self.minor_parents = self.calculateParents(block_dict, False)        
+        self.minor_parents = self.calculateParents(block_dict, False)      
         print("Calculating major parents...")
         self.major_parents = self.calculateParents(block_dict, True)
         print("Done")       
 
+    def output(self):
+        print("Creating output file...")
+        
+        # Create unique key for the file name
+        key = re.search(r'(?<=alignment_).*', self.alignment_path.name).group()[:-3]
+        fileName = ("output/RPD_Output_" + key + '.csv')
+        filePath = Path(fileName)
+        
+        try:
+            os.makedirs('output')
+        except FileExistsError:
+            pass
+
+        with open(fileName, "w") as g:
+            header = ['SantaEventNumber', 'StartBP', 'EndBP', 'Recombinant', 'MinorParent', 'MajorParent'] 
+            g.write('\t'.join(str(s) for s in header) + '\n')
+
+        for events in self.minor_parents.keys():
+            startBP, EndBP = self.events_dict[events]
+            for minorTup, MajorTup in zip(self.minor_parents[events], self.major_parents[events]):
+                recom = minorTup[0]
+                minor = minorTup[1]
+                major = MajorTup[1]
+                
+                with open(fileName, "a") as f:
+                    content = [events, startBP, EndBP, recom, minor, major]
+                    f.write('\t'.join(str(s) for s in content) + '\n')
+        print('Done')
 
 def getFilePaths():
     # This function is used to get the folder path from command line.
