@@ -20,3 +20,9 @@ Deleted function: getMaxGenomeLength
     genome length and seq number, slightly faster. Converted to dict in any case so no real
     change.
 -------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------
+Added function: Output
+
+1.  Writes output to csv.
+-------------------------------------------------------------------------------------------
