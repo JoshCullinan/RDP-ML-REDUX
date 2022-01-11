@@ -125,7 +125,7 @@ class classifier:
             self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
 
         for event, seqs in self.inv_seqmap_dict.items():
-
+                                    
             start = int(self.rec_events.Start[self.rec_events.EventNum == int(event)])
 
             end = int(self.rec_events.End[self.rec_events.EventNum == int(event)])
@@ -258,10 +258,14 @@ class classifier:
                         hamming_distances[parent] = hamming_distance/total_nucleotides
 
                 #now all the distances have been calculated for this particular sequence, need to find minimum
-                minimum_seq = min(hamming_distances, key=hamming_distances.get)
-                #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
-                #so this output is: recombinant sequence, best parent, hamming distance               
-                best_parents.append((sequence+1, minimum_seq+1, hamming_distances[minimum_seq]))
+                #if hamming distances is empty it means no best parent can be calculated for this event 
+                if hamming_distances:               
+                    minimum_seq = min(hamming_distances, key=hamming_distances.get)
+                    #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
+                    #so this output is: recombinant sequence, best parent, hamming distance               
+                    best_parents.append((sequence+1, minimum_seq+1, hamming_distances[minimum_seq]))
+                else:
+                    best_parents.append((sequence+1, None, None))
 
                 #now add the nucleotides we have traversed to deleted nucleotides, these won't be considered in future events
                 if sequence in deleted_nucleotides.keys():                                                            
