@@ -14,6 +14,7 @@ from Bio import SeqIO, AlignIO
 import distance
 from intervaltree import Interval, IntervalTree
 import re
+import itertools
 
 class classifier:
 
@@ -224,19 +225,87 @@ class classifier:
 
         return block_dict
 
-    def calculateParents(self, block_dict, range_flipper):
-        #range_flipper = flips ranges, so True => major parents are calculated instead of minor
-               
-        #returns a dictionary with {key = event number, value = set(major parents)}
-        #TODO HERE: how to find best major parent out of multiple options?
-        #It is not guaranteed that all sequences will have the same best major parent
+    def findBestParentPair(self, minor_parent_dict, major_parent_dict):
+        #given two lists: one list of potential minor parents and one list of potential major parents, this function returns the best parent pair
+        #the "best" pair meets the following two conditions, if X is the region inherited from minor parent and Y from the major parent
 
+        #1) in X: distance between recombinant and minor parent is minimised while distance between recombinant and major parent is maximised
+        #2) in Y: distance between recombinant and major parent is minimised while distance between recombinant and minor parent is maximised
+
+        #all possible pairs:
+        all_pairs = list(itertools.product(minor_parent_dict.items(), major_parent_dict.items()))
+        min_score = float('inf')
+        best_pair = ()
+       
+        for pair in all_pairs:            
+            #condition 1
+            distance_X_minor = pair[0][1] if pair[0][1]!=None else 1
+            distance_X_major = minor_parent_dict[pair[1][0]] if minor_parent_dict[pair[1][0]]!=None else 0
+            
+            sum1 = distance_X_minor + (1-distance_X_major)
+            #condition 2
+            distance_Y_major = pair[1][1] if pair[1][1]!=None else 1
+            distance_Y_minor = major_parent_dict[pair[0][0]] if major_parent_dict[pair[0][0]]!=None else 0
+            
+            sum2 = distance_Y_major + (1-distance_Y_minor)
+
+            pair_score = sum1+sum2
+            if pair_score < min_score and pair_score < 4:
+                min_score = pair_score
+                best_pair = (pair[0][0], pair[1][0])  
+
+        return (best_pair, min_score)
+
+    def findHammingDistances(self, parent, ranges, deleted_nucleotides, recombinant_seq):
+        #finds hamming distance, for both minor and major parent regions, between recombinant and potential parent
+        parent_seq = str(self.alignment[str(parent+1)])        
+
+        #if we do minor parents, take recombinant region and then remove intervals that have been deleted        
+        ranges_tree_minor = IntervalTree.from_tuples(ranges)
+        if parent in deleted_nucleotides.keys():                                               
+            for j in deleted_nucleotides[parent]:
+                ranges_tree_minor.chop(j.begin, j.end)  
+
+        #for major parents, its the same except we take the complement of the recombinant region (all regions not in the recombinant region)        
+        recombinant_region = IntervalTree.from_tuples(ranges)
+        ranges_tree_major = IntervalTree.from_tuples([[0, self.maxGenomeLength]])
+        for r in recombinant_region:
+            ranges_tree_major.chop(r.begin, r.end)
+        if parent in deleted_nucleotides.keys():                                               
+            for j in deleted_nucleotides[parent]:
+                ranges_tree_major.chop(j.begin, j.end) 
+        
+        #can extract sequences for both regions now, then calculating hamming distance
+        seq1 = '' 
+        seq2 = ''
+        for k in ranges_tree_minor:
+            seq1 = seq1 + recombinant_seq[k.begin:k.end]
+            seq2 = seq2 + parent_seq[k.begin:k.end]
+
+        #calculating hamming distance for minor parent
+        hamming_distance_minor = self.calcHammingDistance(seq1, seq2)
+
+        seq1 = '' 
+        seq2 = ''
+        for k in ranges_tree_major:
+            seq1 = seq1 + recombinant_seq[k.begin:k.end]
+            seq2 = seq2 + parent_seq[k.begin:k.end]
+
+        #calculating hamming distance
+        hamming_distance_major = self.calcHammingDistance(seq1, seq2)
+
+        return (hamming_distance_minor, hamming_distance_major)
+
+    def calculateParents(self, block_dict):                  
+        #calculates "best" minor and major parents
+    
         #this variable (deleted_nucleotides) will keep track of nucleotides with higher event numbers than all current events under consideration,
         #thus if a nucleotide falls into this range, it shouldnt be considered for parent calculations
         #Format is {sequence_name: interval_tree}
         #interval tree holds all intervals of deleted nucleotides
-        deleted_nucleotides = {}             
-        parents = {} 
+        deleted_nucleotides = {}
+        parents_minor = {}            
+        parents_major = {} 
         #we traverse block_dict in reverse order, calculating parents and then adding the ranges traversed to deleted nucleotides
         #i.e. we start at the highest event number, calculate parents with the recombinant region,
         #then that recombinant region is added to deleted nucleotides. Since all future events will have a smaller event number (earlier generation),
@@ -246,64 +315,47 @@ class classifier:
             #divide sequences into recombinant and potential parents
             sequences_in_block = set(sequence_ranges_dict.keys())
             sequences_not_in_block = set(range(self.numberOfSeqs)) - sequences_in_block      
-            best_parents = []
+            best_parents_minor = []
+            best_parents_major = []
 
             #calculate best parents for all sequences of the current recombination event
             for sequence, ranges in sequence_ranges_dict.items():  
                 recombinant_seq = str(self.alignment[str(sequence+1)])  
-                hamming_distances = {}               
+                hamming_distances_major = {}
+                hamming_distances_minor = {}               
 
                 #calculate hamming distances for all potential parents
                 for parent in sequences_not_in_block:
-                    parent_seq = str(self.alignment[str(parent+1)])
-                    seq1 = '' 
-                    seq2 = ''
+                    hamming_distance_both = self.findHammingDistances(parent, ranges, deleted_nucleotides, recombinant_seq)    
+                    hamming_distances_minor[parent] = hamming_distance_both[0]                   
+                    hamming_distances_major[parent] = hamming_distance_both[1]  
 
-                    #if we do minor parents, take recombinant region and then remove intervals that have been deleted
-                    if not range_flipper:
-                        ranges_tree = IntervalTree.from_tuples(ranges)
-                        if parent in deleted_nucleotides.keys():                                               
-                            for j in deleted_nucleotides[parent]:
-                                ranges_tree.chop(j.begin, j.end) 
-                    #for major parents, its the same except we take the complement of the recombinant region (all regions not in the recombinant region)
-                    else:
-                        recombinant_region = IntervalTree.from_tuples(ranges)
-                        ranges_tree = IntervalTree.from_tuples([[0, self.maxGenomeLength]])
-                        for r in recombinant_region:
-                            ranges_tree.chop(r.begin, r.end)
-                        if parent in deleted_nucleotides.keys():                                               
-                            for j in deleted_nucleotides[parent]:
-                                ranges_tree.chop(j.begin, j.end) 
+                #find best parents:
+                best_parents_score = self.findBestParentPair(hamming_distances_minor, hamming_distances_major) 
+                best_parents = best_parents_score[0]
+                best_score = best_parents_score[1]           
 
-                    
-                    #can extract sequence now, since we have the final region:
-                    #recombinant region with all deleted nucleotides removed
-                    for k in ranges_tree:
-                        seq1 = seq1 + recombinant_seq[k.begin:k.end]
-                        seq2 = seq2 + parent_seq[k.begin:k.end]
-
-                    #calculating hamming distance
-                    hamming_distance = self.calcHammingDistance(seq1, seq2)
-                    
-                    if hamming_distance != None:
-                        hamming_distances[parent] = hamming_distance
-
-                    #JOSH EDITED: Normalising in the function now due to dropping characters
-                    # total_nucleotides = (len(seq1))
-                        
-                    # #now add the sequence that has been compared to, together with normalised total hamming distance
-                    # if total_nucleotides > 0:
-                    #     hamming_distances[parent] = hamming_distance/total_nucleotides
-
+                best_parents_minor.append((sequence+1, best_parents[0]+1, best_score))
+                best_parents_major.append((sequence+1, best_parents[1]+1, best_score))
+                '''
                 #now all the distances have been calculated for this particular sequence, need to find minimum
                 #if hamming distances is empty it means no best parent can be calculated for this event 
-                if hamming_distances:               
-                    minimum_seq = min(hamming_distances, key=hamming_distances.get)
+                if hamming_distances_major:               
+                    minimum_seq = min(hamming_distances_major, key=hamming_distances_major.get)
                     #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
                     #so this output is: recombinant sequence, best parent, hamming distance               
-                    best_parents.append((sequence+1, minimum_seq+1, hamming_distances[minimum_seq]))
+                    best_parents_major.append((sequence+1, minimum_seq+1, hamming_distances_major[minimum_seq]))
                 else:
-                    best_parents.append((sequence+1, None, None))
+                    best_parents_major.append((sequence+1, None, None))
+
+                if hamming_distances_minor:               
+                    minimum_seq = min(hamming_distances_minor, key=hamming_distances_minor.get)
+                    #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
+                    #so this output is: recombinant sequence, best parent, hamming distance               
+                    best_parents_minor.append((sequence+1, minimum_seq+1, hamming_distances_minor[minimum_seq]))
+                else:
+                    best_parents_minor.append((sequence+1, None, None))
+                '''
 
                 #now add the nucleotides we have traversed to deleted nucleotides, these won't be considered in future events
                 if sequence in deleted_nucleotides.keys():                                                            
@@ -312,9 +364,11 @@ class classifier:
                 else:
                     deleted_nucleotides[sequence] = IntervalTree.from_tuples(ranges)
 
-            parents[event_number] = best_parents  
+            parents_minor[event_number] = best_parents_minor
+            parents_major[event_number] = best_parents_major  
 
-        return parents
+        self.minor_parents = parents_minor
+        self.major_parents = parents_major        
 
     def calcParents(self):
         #This function uses the generation matrix to calculate the best minor and major parents for each recombination event
@@ -323,10 +377,8 @@ class classifier:
         #will make a dictionary to store this information, see function for more details on dictionary
         block_dict = self.findEventPositions()         
         #now we can use this dictionary to find the major parents
-        print("Calculating minor parents...")
-        self.minor_parents = self.calculateParents(block_dict, False)      
-        print("Calculating major parents...")
-        self.major_parents = self.calculateParents(block_dict, True)
+        print("Calculating best minor and major parents...")
+        self.calculateParents(block_dict)  
         print("Done")       
 
     def output(self):
@@ -343,7 +395,7 @@ class classifier:
             pass
 
         with open(fileName, "w") as g:
-            header = ['SantaEventNumber', 'StartBP', 'EndBP', 'Recombinant', 'MinorParent', 'MajorParent'] 
+            header = ['SantaEventNumber', 'StartBP', 'EndBP', 'Recombinant', 'MinorParent', 'MajorParent', 'Score'] 
             g.write('\t'.join(str(s) for s in header) + '\n')
 
         for events in self.minor_parents.keys():
@@ -352,9 +404,10 @@ class classifier:
                 recom = minorTup[0]
                 minor = minorTup[1]
                 major = MajorTup[1]
+                score = minorTup[2]
                 
                 with open(fileName, "a") as f:
-                    content = [events, startBP, EndBP, recom, minor, major]
+                    content = [events, startBP, EndBP, recom, minor, major, score]
                     f.write('\t'.join(str(s) for s in content) + '\n')
         print('Done')
 
@@ -403,9 +456,9 @@ if __name__ == "__main__":
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
     # Currently used for testing purposes.
-    alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
-    recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
-    sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
+    alignment_path = "data/alignment_XML5-4000-0.02-12E-5-50-4-3.fa"
+    recombination_path = "data/recombination_events_XML5-4000-0.02-12E-5-50-4-3.txt"
+    sequence_path = "data/sequence_events_map_XML5-4000-0.02-12E-5-50-4-3.txt"
 
     # Create classifier class by initialising file paths
     parser = classifier(alignment_path, recombination_path, sequence_path)
