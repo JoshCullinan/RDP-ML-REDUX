@@ -386,7 +386,7 @@ class classifier:
         
         # Create unique key for the file name
         key = re.search(r'(?<=alignment_).*', self.alignment_path.name).group()[:-3]
-        fileName = ("output/RPD_Output_" + key + '.csv')
+        fileName = ("output/RPD_Output_" + key + '.rdp5ML')
         filePath = Path(fileName)
         
         try:
