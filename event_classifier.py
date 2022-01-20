@@ -18,33 +18,27 @@ import itertools
 
 class classifier:
 
-    # Lists of paths for the three file types we're parsing
-    rec_events_path = Path
-    seq_events_path_path = Path
-    alignment_path = Path
+    def __init__(self, alig, rec, seq):        
+        # Recombination events and sequence events files
+        self.alignment = dict
+        self.rec_events = pd.DataFrame
+        self.seq_events = pd.DataFrame
+        
+        # The longest genome in the alignment files.
+        self.maxGenomeLength = 0
+        self.numberOfSeqs = 0
 
-    # Recombination events and sequence events files
-    alignment = dict
-    rec_events = pd.DataFrame
-    seq_events = pd.DataFrame
+        # Generation matrix is a numpy array that is [number of alignments x max genome length] ([row x columns])
+        self.generationMatrix = np.array
 
-    # The longest genome in the alignment files.
-    maxGenomeLength = 0
-    numberOfSeqs = 0
+        # Dictionaries
+        self.seqmap_dict = dict
+        self.events_dict = dict
+        self.events_map = dict
+        self.inv_seqmap_dict = defaultdict(set)
 
-    # Generation matrix is a numpy array that is [number of alignments x max genome length] ([row x columns])
-    generationMatrix = np.array
-
-    # Dictionaries
-    seqmap_dict = dict
-    events_dict = dict
-    events_map = dict
-    inv_seqmap_dict = defaultdict(set)
-
-    # Gap dict
-    gaps = defaultdict(set)
-
-    def __init__(self, alig, rec, seq):
+        # Gap dict
+        self.gaps = defaultdict(set)
 
         # Get relavent files that will be used in the parsing
         self.alignment_path = Path(alig)
@@ -128,9 +122,8 @@ class classifier:
             self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
 
         for event, seqs in self.inv_seqmap_dict.items():
-                                    
+            
             start = int(self.rec_events.Start[self.rec_events.EventNum == int(event)])
-
             end = int(self.rec_events.End[self.rec_events.EventNum == int(event)])
 
             # Fixes indexing error involving maximum genome length
@@ -369,7 +362,7 @@ class classifier:
         
         # Create unique key for the file name
         key = re.search(r'(?<=alignment_).*', self.alignment_path.name).group()[:-3]
-        fileName = ("output/RPD_Output_" + key + '.csv')
+        fileName = ("output/RPD_Output_" + key + '.rdp5ML')
         filePath = Path(fileName)
         
         try:
@@ -394,57 +387,62 @@ class classifier:
                     f.write('\t'.join(str(s) for s in content) + '\n')
         print('Done')
 
-def getFilePaths():
-    # This function is used to get the folder path from command line.
-    # For future pipeline use.
+#### Unused ####
+# def getFilePaths():
+#     # This function is used to get the folder path from command line.
+#     # For future pipeline use.
 
-    # Define command line argument parser
-    parser = argparse.ArgumentParser(
-        description="Parse Recombination Information from SantaSim"
-    )
+#     # Define command line argument parser
+#     parser = argparse.ArgumentParser(
+#         description="Parse Recombination Information from SantaSim"
+#     )
 
-    # Add arguments for command line
-    parser.add_argument(
-        "-a",
-        dest="alignment_path",
-        type=str,
-        help="recombination events file",
-        required=True,
-    )
-    parser.add_argument(
-        "-f",
-        dest="recombination_path",
-        type=str,
-        help="recombination events file",
-        required=True,
-    )
-    parser.add_argument(
-        "-f",
-        dest="sequence_path",
-        type=str,
-        help="sequence events map file",
-        required=True,
-    )
+#     # Add arguments for command line
+#     parser.add_argument(
+#         "-a",
+#         dest="alignment_path",
+#         type=str,
+#         help="recombination events file",
+#         required=True,
+#     )
+#     parser.add_argument(
+#         "-f",
+#         dest="recombination_path",
+#         type=str,
+#         help="recombination events file",
+#         required=True,
+#     )
+#     parser.add_argument(
+#         "-f",
+#         dest="sequence_path",
+#         type=str,
+#         help="sequence events map file",
+#         required=True,
+#     )
 
-    # Parse Events
-    args = parser.parse_args()
+#     # Parse Events
+#     args = parser.parse_args()
 
-    # Returns the root folder to parse
-    return (args.alignment_path, args.recombination_path, args.sequence_path)
+#     # Returns the root folder to parse
+#     return (args.alignment_path, args.recombination_path, args.sequence_path)
 
 
 if __name__ == "__main__":
 
+    # Using the file as a class from the module in the pipeline script. 
+    # This section isn't necessary but leaving in for now. 
+    print('Im main')
+
     # The line below will be used to get fileNames from pipeline later
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
-    # Currently used for testing purposes.
-    alignment_path = "data/alignment_XML5-4000-0.02-12E-5-50-4-3.fa"
-    recombination_path = "data/recombination_events_XML5-4000-0.02-12E-5-50-4-3.txt"
-    sequence_path = "data/sequence_events_map_XML5-4000-0.02-12E-5-50-4-3.txt"
+    # # Currently used for testing purposes.
+    # alignment_path = "data/alignment_XML5-4000-0.02-12E-5-50-4-3.fa"
+    # recombination_path = "data/recombination_events_XML5-4000-0.02-12E-5-50-4-3.txt"
+    # sequence_path = "data/sequence_events_map_XML5-4000-0.02-12E-5-50-4-3.txt"
 
-    # Create classifier class by initialising file paths
-    parser = classifier(alignment_path, recombination_path, sequence_path)
+    # # Create classifier class by initialising file paths
+    # parser = classifier(alignment_path, recombination_path, sequence_path)
 
     # XML1-2500-0.01-12E-5-100-13
     # XML5-4000-0.02-12E-5-50-4-3
