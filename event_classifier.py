@@ -335,28 +335,11 @@ class classifier:
                 best_parents = best_parents_score[0]
                 best_score = best_parents_score[1]           
 
-                best_parents_minor.append((sequence+1, best_parents[0]+1, best_score))
-                best_parents_major.append((sequence+1, best_parents[1]+1, best_score))
-                '''
-                #now all the distances have been calculated for this particular sequence, need to find minimum
-                #if hamming distances is empty it means no best parent can be calculated for this event 
-                if hamming_distances_major:               
-                    minimum_seq = min(hamming_distances_major, key=hamming_distances_major.get)
-                    #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
-                    #so this output is: recombinant sequence, best parent, hamming distance               
-                    best_parents_major.append((sequence+1, minimum_seq+1, hamming_distances_major[minimum_seq]))
-                else:
-                    best_parents_major.append((sequence+1, None, None))
-
-                if hamming_distances_minor:               
-                    minimum_seq = min(hamming_distances_minor, key=hamming_distances_minor.get)
-                    #add this minimum hamming distance sequence, together with its hamming distance to best parents list 
-                    #so this output is: recombinant sequence, best parent, hamming distance               
-                    best_parents_minor.append((sequence+1, minimum_seq+1, hamming_distances_minor[minimum_seq]))
-                else:
-                    best_parents_minor.append((sequence+1, None, None))
-                '''
-
+                #if a viable best parent pair could be found, add to list
+                if best_parents:
+                    best_parents_minor.append((sequence+1, best_parents[0]+1, best_score))
+                    best_parents_major.append((sequence+1, best_parents[1]+1, best_score))                 
+             
                 #now add the nucleotides we have traversed to deleted nucleotides, these won't be considered in future events
                 if sequence in deleted_nucleotides.keys():                                                            
                     deleted_nucleotides[sequence] = deleted_nucleotides[sequence].union(IntervalTree.from_tuples(ranges))                     
