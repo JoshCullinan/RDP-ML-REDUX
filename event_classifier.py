@@ -140,7 +140,7 @@ class classifier:
                 )
 
     def calcHammingDistance(self, seq1, seq2):
-        #TODO: Coverage weighting and distance from breakpoint weighting (max difference of ~25%)
+        #TODO: Distance from breakpoint weighting (max difference of ~25%)
         # Set for instances where seq1 and seq2 are 0 after dropping -
         normalisedDistance = None
 
