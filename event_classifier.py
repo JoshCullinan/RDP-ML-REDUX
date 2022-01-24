@@ -140,9 +140,12 @@ class classifier:
                 )
 
     def calcHammingDistance(self, seq1, seq2):
-        
+        #TODO: Coverage weighting and distance from breakpoint weighting (max difference of ~25%)
         # Set for instances where seq1 and seq2 are 0 after dropping -
         normalisedDistance = None
+
+        #Length of Seqs
+        totalLen = len(seq1)
 
         # Find the index of the gap characters in both sequences
         seq1Gaps = ({pos for pos, char in enumerate(str(seq1)) if char == '-'})
@@ -150,11 +153,11 @@ class classifier:
 
         # Find the union of these Gap characters
         union = seq1Gaps | seq2Gaps
-
+        
         # Remove the characters at the indexes of the union. 
-        # 'A-TT-G' (Gaps at 1 and 4)
-        # 'GG-TAA' (Gap at 3)
-        # Union is {1,3,4}
+        # 'A-TT-G-' (Gaps at 1, 4 and 5)
+        # 'GG-TAA-' (Gap at 3 and 5)
+        # Union is {1,3,4,5}
         # Output sequences will be 'ATG' and 'GTA'. Hamming distance will be 2. 
         # Normalised over the total sites where neither sequence has a gap (3)
         # 2/3 = 0.66
@@ -167,13 +170,19 @@ class classifier:
         d = distance.hamming(seq1, seq2)
 
         #Length of seqs
-        totalNucleotides = len(seq1)
+        remainingNucleotides = len(seq1)
 
-        if totalNucleotides > 0:
+        if remainingNucleotides > 0:
             # Normalise over number of chars without gap characters
-            normalisedDistance = d/totalNucleotides
+            normalisedDistance = d/remainingNucleotides
 
-        return normalisedDistance
+        # Find the coverage of seq2 onto seq1. 
+        # Considering that seq1 is the recombinant, we want to find coverage that maps onto that sequence.  
+        coverage = (totalLen - len(union - seq1Gaps))/totalLen
+
+        # Dividing as the normalised Distance is a fraction, and we want to penalise for worse coverage.
+        # Therefore, normalised distance of 0.1 / 100% = 0.1; but 1.0 /0.2 = 0.2.
+        return (normalisedDistance / coverage)
 
     def findEventPositions(self):
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment we need to compare sequences within to find parents
@@ -431,18 +440,18 @@ if __name__ == "__main__":
 
     # Using the file as a class from the module in the pipeline script. 
     # This section isn't necessary but leaving in for now. 
-    print('Im main')
+    # print('Im main')
 
     # The line below will be used to get fileNames from pipeline later
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
-    # # Currently used for testing purposes.
-    # alignment_path = "data/alignment_XML5-4000-0.02-12E-5-50-4-3.fa"
-    # recombination_path = "data/recombination_events_XML5-4000-0.02-12E-5-50-4-3.txt"
-    # sequence_path = "data/sequence_events_map_XML5-4000-0.02-12E-5-50-4-3.txt"
+    # Currently used for testing purposes.
+    alignment_path = "data/alignment_XML5-4000-0.02-12E-5-50-4-3.fa"
+    recombination_path = "data/recombination_events_XML5-4000-0.02-12E-5-50-4-3.txt"
+    sequence_path = "data/sequence_events_map_XML5-4000-0.02-12E-5-50-4-3.txt"
 
-    # # Create classifier class by initialising file paths
-    # parser = classifier(alignment_path, recombination_path, sequence_path)
+    # Create classifier class by initialising file paths
+    parser = classifier(alignment_path, recombination_path, sequence_path)
 
     # XML1-2500-0.01-12E-5-100-13
     # XML5-4000-0.02-12E-5-50-4-3
