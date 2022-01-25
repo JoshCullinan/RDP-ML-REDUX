@@ -140,7 +140,8 @@ class classifier:
                 )
 
     def calcHammingDistance(self, seq1, seq2):
-        #TODO: Distance from breakpoint weighting (max difference of ~25%)
+        #TODO: Consider implementing distance from breakpoint weighting (max difference of ~25%)
+
         # Set for instances where seq1 and seq2 are 0 after dropping -
         normalisedDistance = None
 
@@ -176,12 +177,33 @@ class classifier:
             # Normalise over number of chars without gap characters
             normalisedDistance = d/remainingNucleotides
 
-        # Find the coverage of seq2 onto seq1. 
-        # Considering that seq1 is the recombinant, we want to find coverage that maps onto that sequence.  
-        coverage = (totalLen - len(union - seq1Gaps))/totalLen
+            # Find the coverage of seq2 onto seq1. 
+            # Considering that seq1 is the recombinant, we want to find coverage that maps onto that sequence
+            # Everywhere that seq2 maps onto seq1, comparing nucleotide to nucleotide it is considered as coverage
+            # A nucleotide from seq2 that maps to a seq1 gap character, is not considered for coverage.  
+            # 'A-TT-G-' (Gaps at 1, 4 and 5)
+            # 'GG-TAA-' (Gap at 3 and 5)
+            # Union is {1,3,4,5}
+            # Union - Seq1Gaps = {3}. Therefore coverage is (4 - 1) / 4 = 3/4
+            
+            # Don't need to check that coveredLength is > 0 because for remaining nucleotides to be bigger than 0,
+            # seq1Gaps cannot be the length of the whole seq.
+            coveredLength = totalLen - len(seq1Gaps)
+            
+            ### Example ###
+            # 1. --GCA-GC-
+            # 2. TA-----GC
+            # TotalLen = 9
+            # Union = {0,1,2,3,4,5,6,8}
+            # Seq1Gaps = {0,1,5,8}
+            # Seq2Gaps = {2,3,4,5,6}
+            # Coveredlength = 5
+            # Therefore, coverage = (5 - 4)/5 = 1/5
+
+            coverage = (coveredLength - len(union - seq1Gaps))/coveredLength
 
         # Dividing as the normalised Distance is a fraction, and we want to penalise for worse coverage.
-        # Therefore, normalised distance of 0.1 / 100% = 0.1; but 1.0 /0.2 = 0.2.
+        # Therefore, normalised distance / coverage -> 0.1 / 1.0 = 0.1; but 0.8 /0.2 = 4.0.
         return (normalisedDistance / coverage)
 
     def findEventPositions(self):
