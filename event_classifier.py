@@ -136,8 +136,8 @@ class classifier:
             for x in iter(seqs):
                 box.append(x - 1)
 
-            self.generationMatrix[box, start : (end + 1)] = np.full(
-                (len(seqs), end + 1 - start), int(event), dtype=np.int32
+            self.generationMatrix[box, start : (end)] = np.full(
+                (len(seqs), end - start), int(event), dtype=np.int32
                 )
 
 
