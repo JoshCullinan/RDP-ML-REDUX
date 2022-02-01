@@ -2,6 +2,7 @@
 # Classifier finds the optimal minor and major parent for recombinant.
 
 import argparse
+from audioop import reverse
 import collections
 import os
 from pathlib import Path
@@ -121,23 +122,25 @@ class classifier:
         for key, gaps in self.gaps.items():
             self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
 
-        for event, seqs in self.inv_seqmap_dict.items():
+        # Create a sorted list of the event keys
+        eventList = sorted([*self.inv_seqmap_dict.keys()])
+
+        for event in eventList:
+            seqs = self.inv_seqmap_dict[event]
             
+            # Python is zero indexed.
             start = int(self.rec_events.Start[self.rec_events.EventNum == int(event)])
             end = int(self.rec_events.End[self.rec_events.EventNum == int(event)])
-
-            # Fixes indexing error involving maximum genome length
-            fix = 1
-            if end == self.maxGenomeLength:
-                fix = 0
 
             box = []
             for x in iter(seqs):
                 box.append(x - 1)
 
             self.generationMatrix[box, start : (end + 1)] = np.full(
-                (len(seqs), end + 1 * fix - start), int(event), dtype=np.int32
+                (len(seqs), end + 1 - start), int(event), dtype=np.int32
                 )
+
+
 
     def calcHammingDistance(self, seq1, seq2):
         #TODO: Consider implementing distance from breakpoint weighting (max difference of ~25%)
@@ -204,7 +207,13 @@ class classifier:
 
         # Dividing as the normalised Distance is a fraction, and we want to penalise for worse coverage.
         # Therefore, normalised distance / coverage -> 0.1 / 1.0 = 0.1; but 0.8 /0.2 = 4.0.
-        return (normalisedDistance / coverage)
+
+        try:
+            outDistance = normalisedDistance / coverage
+        except:
+            outDistance = None
+
+        return (outDistance)
 
     def findEventPositions(self):
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment we need to compare sequences within to find parents
@@ -477,3 +486,7 @@ if __name__ == "__main__":
 
     # XML1-2500-0.01-12E-5-100-13
     # XML5-4000-0.02-12E-5-50-4-3
+
+    # data/tiny_test.fa
+    # data/tiny_test_revents.txt
+    # data/tiny_test_map.txt
