@@ -2,7 +2,6 @@
 # Classifier finds the optimal minor and major parent for recombinant.
 
 import argparse
-from audioop import reverse
 import collections
 import os
 from pathlib import Path
@@ -15,15 +14,12 @@ import distance
 from intervaltree import Interval, IntervalTree
 import re
 import itertools
-from scipy.stats import beta, hypergeom
 from math import ceil, floor, sqrt
 import sys
 
 class classifier:
 
     def __init__(self, alig, rec, seq):      
-        self.loop_counter = {"fine": 0, "not fine": 0}
-
         # Recombination events and sequence events files
         self.alignment = dict
         self.rec_events = pd.DataFrame
@@ -151,7 +147,10 @@ class classifier:
                 box.append(x - 1)
 
             self.generationMatrix[box, start : (end)] = np.full(
+
                 (len(seqs), end - start), int(event), dtype=np.int32)
+
+
 
     def calcHammingDistance(self, seq1, seq2):
         #calculates hamming distance between seq1 and seq2
@@ -233,7 +232,6 @@ class classifier:
             normalisedDistanceScore = CI[1] 
 
         return normalisedDistanceScore
-
 
     def findEventPositions(self):
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment we need to compare sequences within to find parents
@@ -644,3 +642,8 @@ if __name__ == "__main__":
     # XML1-2500-0.01-12E-5-100-13
     # XML1-4000-0.005-8E-5-200-6
     # XML5-4000-0.02-12E-5-50-4-3
+
+    # data/tiny_test.fa
+    # data/tiny_test_revents.txt
+    # data/tiny_test_map.txt
+
