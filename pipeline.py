@@ -4,11 +4,7 @@ import event_classifier
 import re
 import gc
 
-
 alignment_files = []
-# rec_events_files = []
-# seq_events_files = []
-
 
 def getFileNames(folderToParse = ''):
     # Walk through the folder and find all recombination event files, sequence event files and
@@ -25,14 +21,6 @@ def getFileNames(folderToParse = ''):
             if files.endswith('.fa'):
                 alignment_files.append(
                     Path(paths[0] + '/' + files))
-
-            # if files.startswith('recombination_events'):
-            #     rec_events_files.append(
-            #         Path(paths[0] + '/' + files))
-
-            # if files.startswith('sequence_events_map'):
-            #     seq_events_files.append(
-            #         Path(paths[0] + '/' + files))
     
 def parsing_loop():
     total = len(alignment_files)
@@ -51,7 +39,7 @@ def parsing_loop():
             gc.collect()
             
         else:
-            print('The requested files dont exist')
+            print("The requested files don't exist")
             print('Alig: ' + str(alig.exists()))
             print('Rec: ' + str(rec.exists()))
             print('Seq: ' + str(seq.exists()))
@@ -59,5 +47,6 @@ def parsing_loop():
 
 
 if __name__ == '__main__':
+    # Change the path below to your target path.
     getFileNames(folderToParse=Path(r'C:\Users\joshc\OneDrive\University\Masters\RDP-ML\output\alignments'))
     parsing_loop()
