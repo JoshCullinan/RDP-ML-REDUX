@@ -524,7 +524,6 @@ class classifier:
                     else:
                         best_major_parent = best_parents[1]
 
-
                     best_parents_minor.append((sequence+1, best_minor_parent, best_score))
                     best_parents_major.append((sequence+1, best_major_parent, best_score))                 
              
@@ -547,14 +546,10 @@ class classifier:
         #we need to know where the "recombination event blocks" are, i.e. which sections of the alignment to compare to find parents
         #will make a dictionary to store this information, see function for more details on dictionary
         block_dict = self.findEventPositions()                
-        #now we can use this dictionary to find the major parents
-        print("Calculating best minor and major parents...")        
+        #now we can use this dictionary to find the major parents              
         self.calculateParents(block_dict)  
-        print("Done")       
-
-    def output(self):
-        print("Creating output file...")       
-        
+      
+    def output(self):  
         # Create unique key for the file name
         key = re.search(r'(?<=alignment_).*', self.alignment_path.name).group()[:-3]
         fileName = ("output/RPD_Output_" + key + '.rdp5ML')
@@ -580,7 +575,7 @@ class classifier:
                 with open(fileName, "a", newline = '\r\n') as f:
                     content = [events, startBP, EndBP, recom, minor, major, score]
                     f.write('\t'.join(str(s) for s in content) + '\n')
-        print('Done')
+        print('Done with file: ' + fileName)
 
 #### Unused ####
 # def getFilePaths():
@@ -622,7 +617,7 @@ class classifier:
 #     return (args.alignment_path, args.recombination_path, args.sequence_path)
 
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
 
     # Using the file as a class from the module in the pipeline script. 
     # This section isn't necessary but leaving in for now. 
@@ -632,12 +627,12 @@ if __name__ == "__main__":
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
     # Currently used for testing purposes.
-    alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
-    recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
-    sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
+    #alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
+    #recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
+    #sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
 
     # Create classifier class by initialising file paths
-    parser = classifier(alignment_path, recombination_path, sequence_path)
+    #parser = classifier(alignment_path, recombination_path, sequence_path)
 
     # XML1-2500-0.01-12E-5-100-13
     # XML1-4000-0.005-8E-5-200-6
