@@ -129,10 +129,10 @@ class classifier:
 
         #self.generationMatrix = np.zeros(shape=(self.numberOfSeqs, self.maxGenomeLength))
         self.generationMatrix = np.full(shape=(self.numberOfSeqs, self.maxGenomeLength), dtype='O', fill_value=0)
-        for key, gaps in self.gaps.items():
-            self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
+        #for key, gaps in self.gaps.items():
+            #self.generationMatrix[key-1, [pos for pos in gaps]] = '-'
 
-        # Create a sorted list of the event keys
+        #Create a sorted list of the event keys
         eventList = sorted([*self.inv_seqmap_dict.keys()])
 
         for event in eventList:
@@ -150,6 +150,7 @@ class classifier:
 
                 (len(seqs), end - start), int(event), dtype=np.int32)
 
+        print(self.alignment_path.name)
 
 
     def calcHammingDistance(self, seq1, seq2):
@@ -177,7 +178,7 @@ class classifier:
         # Normalised over the total sites where neither sequence has a gap (3)
         # 2/3 = 0.66
 
-        for count, indx in enumerate(union):
+        for count, indx in enumerate(sorted(union)):
             seq1 = seq1[:indx-count] + seq1[indx+1-count:]
             seq2 = seq2[:indx-count] + seq2[indx+1-count:]
         
@@ -245,17 +246,17 @@ class classifier:
 
         #The point is to have a way to efficiently know where any given recombination block in the generation matrix is, 
         #without having to search it for all entries of a given event number
-        block_dict = {x:{} for x in self.events_dict.keys()}       
-
+        block_dict = {x:{} for x in self.events_dict.keys()}      
+       
         #extracting raw array
-        gen_matrix = self.generationMatrix
-
+        gen_matrix = self.generationMatrix   
+       
         #iterate through generation matrix, where index = a tuple (sequence name, nucleotide position) 
         for index, entry in np.ndenumerate(gen_matrix):
-            #entry of 0 means no recombination event touched this nucleotide, so we don't have to do anything
-            if not entry == 0:
+            #entry of 0 means no recombination event touched this nucleotide, so we don't have to do anything            
+            if not (entry == 0 or entry == '-'):
                 seq = index[0]
-                nucleotide_pos = index[1]
+                nucleotide_pos = index[1]              
                 
                 if seq in block_dict[entry]:
                     #if entry exists, change as appropiate
@@ -411,7 +412,8 @@ class classifier:
                 seq2 = seq2 + y[k.begin:k.end]
 
             #calculating hamming distance      
-            hamming_distance = self.calcHammingDistance(seq1, seq2)   
+            hamming_distance = self.calcHammingDistance(seq1, seq2)
+            #calculate the amount of gap characters that were discarded, append to output  
 
             return hamming_distance
 
@@ -423,7 +425,7 @@ class classifier:
         major_block_length = self.maxGenomeLength - recombinant_block_length 
 
         #calculating hamming distances, where close nucleotides are double weighted
-        #returns a list [distance, length] where length is nucleotide pair count used for distance comparison (sample size for stat calc)
+        #returns a list [distance, length, gap characters discarded] where length is nucleotide pair count used for distance comparison (sample size for stat calc)
         minor_close_distance = return_distances(recombinant_seq, parent_seq, minor_tree_ranges_close)
         minor_far_distance = return_distances(recombinant_seq, parent_seq, minor_tree_ranges_far)
         major_close_distance = return_distances(recombinant_seq, parent_seq, major_tree_ranges_close)
@@ -456,6 +458,15 @@ class classifier:
             major_totals = major_far_distance
         else:
             major_totals = None
+
+        '''
+        print(minor_totals)
+        print(recombinant_block_length)
+        print("*")
+        print(major_totals)
+        print(major_block_length)
+        print("")
+        '''
   
         #if the totals exist (not none), go ahead and calc the final scores
         if minor_totals:  
@@ -574,8 +585,7 @@ class classifier:
                 
                 with open(fileName, "a", newline = '\r\n') as f:
                     content = [events, startBP, EndBP, recom, minor, major, score]
-                    f.write('\t'.join(str(s) for s in content) + '\n')
-        print('Done with file: ' + fileName)
+                    f.write('\t'.join(str(s) for s in content) + '\n')        
 
 #### Unused ####
 # def getFilePaths():
@@ -627,18 +637,17 @@ class classifier:
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
     # Currently used for testing purposes.
-    #alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
-    #recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
-    #sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
+    #alignment_path = "/data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
+    #recombination_path = "/data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
+    #sequence_path = "/data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
 
     # Create classifier class by initialising file paths
     #parser = classifier(alignment_path, recombination_path, sequence_path)
 
     # XML1-2500-0.01-12E-5-100-13
     # XML1-4000-0.005-8E-5-200-6
-    # XML5-4000-0.02-12E-5-50-4-3
+    # XML5-4000-0.02-12E-5-50-4-3   
 
     # data/tiny_test.fa
     # data/tiny_test_revents.txt
     # data/tiny_test_map.txt
-
