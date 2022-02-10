@@ -254,7 +254,7 @@ class classifier:
         #iterate through generation matrix, where index = a tuple (sequence name, nucleotide position) 
         for index, entry in np.ndenumerate(gen_matrix):
             #entry of 0 means no recombination event touched this nucleotide, so we don't have to do anything            
-            if not (entry == 0 or entry == '-'):
+            if not (entry == 0):
                 seq = index[0]
                 nucleotide_pos = index[1]              
                 
@@ -412,8 +412,7 @@ class classifier:
                 seq2 = seq2 + y[k.begin:k.end]
 
             #calculating hamming distance      
-            hamming_distance = self.calcHammingDistance(seq1, seq2)
-            #calculate the amount of gap characters that were discarded, append to output  
+            hamming_distance = self.calcHammingDistance(seq1, seq2)              
 
             return hamming_distance
 
@@ -425,7 +424,7 @@ class classifier:
         major_block_length = self.maxGenomeLength - recombinant_block_length 
 
         #calculating hamming distances, where close nucleotides are double weighted
-        #returns a list [distance, length, gap characters discarded] where length is nucleotide pair count used for distance comparison (sample size for stat calc)
+        #returns a list [distance, length] where length is nucleotide pair count used for distance comparison (sample size for stat calc)
         minor_close_distance = return_distances(recombinant_seq, parent_seq, minor_tree_ranges_close)
         minor_far_distance = return_distances(recombinant_seq, parent_seq, minor_tree_ranges_far)
         major_close_distance = return_distances(recombinant_seq, parent_seq, major_tree_ranges_close)
@@ -458,16 +457,7 @@ class classifier:
             major_totals = major_far_distance
         else:
             major_totals = None
-
-        '''
-        print(minor_totals)
-        print(recombinant_block_length)
-        print("*")
-        print(major_totals)
-        print(major_block_length)
-        print("")
-        '''
-  
+    
         #if the totals exist (not none), go ahead and calc the final scores
         if minor_totals:  
             distance_score_minor = self.calcNormalisedDistanceScore(minor_totals[0], minor_totals[1], recombinant_block_length)           
@@ -637,9 +627,9 @@ class classifier:
     # alignment_path, recombination_path, sequence_path = getFilePaths()
 
     # Currently used for testing purposes.
-    #alignment_path = "/data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
-    #recombination_path = "/data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
-    #sequence_path = "/data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
+    #alignment_path = "data/alignment_XML1-2500-0.01-12E-5-100-13.fa"
+    #recombination_path = "data/recombination_events_XML1-2500-0.01-12E-5-100-13.txt"
+    #sequence_path = "data/sequence_events_map_XML1-2500-0.01-12E-5-100-13.txt"
 
     # Create classifier class by initialising file paths
     #parser = classifier(alignment_path, recombination_path, sequence_path)
