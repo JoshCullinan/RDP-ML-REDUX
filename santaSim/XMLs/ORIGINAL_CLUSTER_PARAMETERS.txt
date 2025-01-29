@@ -1,0 +1,24 @@
+----------------------------------------------------------------------------------------------------------------
+CHANGES IN CMD:
+1. GenerationCount + SamplingFrequency
+	- 2500	
+	- 3250
+	- 4000
+	
+2. Recombination Probability
+	- 0.005
+	- 0.01
+	- 0.02
+
+3. Mutation Rate
+	- 4E-5	
+	- 8E-5
+	- 12E-5
+	
+4. Sample size
+	- 50
+	- 100
+	- 200
+	
+example usage:
+java -jar santa.jar -generationCount=2500 -recombinationProbability=0.005 -mutationRate=4E-5 -sampleSize=50 3.xml

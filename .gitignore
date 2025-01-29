@@ -142,7 +142,15 @@ output
 /dataParsed_test
 /img
 /models
-/models_test
+/models_test/BNNdep_preds.csv
+/models_test/GradDep_preds.csv
+/models_test/LogRegdep_preds.csv
+/models_test/RDPdep_preds.csv
+/models_test/RFdep_preds.csv
 /output_test
 /RelationshipData
-/santaSim
+/santaSim/scripts
+/santaSim/XMLs/Others
+/santaSim/sarbecoStart.Fa 
+/santaSim/sarbeco.fas
+RdpAccuracyFinder.py
