@@ -33,6 +33,28 @@ The training dataset consists of 491 124 sequences for classification, derived f
 
 For access to these datasets please contact Joshua Cullinan at CLLJOS001@myuct.ac.za
 
+## File Descriptions
+
+> SantaSim Files
+*santa.jar* -> modified SantaSim executable file
+*Simulation.py* -> pipeline to parse the XML files and run santasim simultaneously with multiple variable inputs.
+
+> Event Classifier 
+*event_classifier.py* -> Written to process the raw simulated genomic sequence data to identify optimal minor and major parent sequences for recombinant sequences, used in the custom version of RDP5.
+*event_classifier_pipeline.py* -> Pipeline for event_classifier
+
+> RDP Pipeline
+*RDP_pipeline.py* -> scans through a supplied directory and runs RDPCL.exe with the files generated from the custom version of SantaSim, outputs the raw training statistics. 
+
+> ML Data Parser
+*output_parser.py* -> Used to process all of the RDP5 statistics with the santa sim output files to create the datasets used for machine learning.
+
+> Machine Learning
+*tools.py* -> contains frequently used functions across all the Jupyter notebooks.
+*RDPML.ipynb* -> Jupyter notebook for the initial models trained on the data.
+*RDPML_BNN.ipynb* -> Jupyter notebook for the binary approach neural network.
+*RDP_PSNN.ipynb* -> Jupyter notebook for the posistion selection neural network.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

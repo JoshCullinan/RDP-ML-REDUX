@@ -153,4 +153,7 @@ output
 /santaSim/XMLs/Others
 /santaSim/sarbecoStart.Fa 
 /santaSim/sarbeco.fas
+/santaSim/pipeline.bat
 RdpAccuracyFinder.py
+/models_test/RF.joblib
+/RandomFiles
