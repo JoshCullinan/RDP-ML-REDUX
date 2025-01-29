@@ -129,9 +129,20 @@ dmypy.json
 .pyre/
 
 # Josh Edits
-output_parser.py
 parsing_loop.py
 .vscode
 scratch.py
 tempfile
 output
+/dataRaw
+/logs
+/Old
+/santaSim/outputs
+/dataParsed
+/dataParsed_test
+/img
+/models
+/models_test
+/output_test
+/RelationshipData
+/santaSim
